@@ -1,3 +1,8 @@
+// todo: Add 'OnRefresh' hook for ViewModel updates without reopening (currently handled implicitly by R3)
+// todo: Inject or configure containerPriorities array in RouteHardwareBack instead of hardcoding it
+// idea: We could potentially use the _containerMappings inspector order for hardware back priorities
+// idea: Object pooling for WindowComposers instead of absolute Object.Destroy()
+
 using System;
 using System.Collections.Generic;
 using System.Threading;
@@ -35,8 +40,8 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
     private IObjectResolver _resolver;
     private readonly Dictionary<string, RectTransform> _containers = new();
     
-    // Upgraded to track a true stack of windows per container to prevent memory leaks/ghosting
     private readonly Dictionary<string, List<WindowComposer>> _activeWindows = new();
+    private readonly Dictionary<string, CancellationTokenSource> _flowTokens = new();
 
     [Inject]
     public void Construct(IObjectResolver resolver)
@@ -45,21 +50,32 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
         
         foreach (var mapping in _containerMappings)
         {
-            if (!string.IsNullOrEmpty(mapping.ContainerId) && mapping.Root != null)
+            if (string.IsNullOrEmpty(mapping.ContainerId) || mapping.Root == null)
             {
-                _containers[mapping.ContainerId] = mapping.Root;
-                _activeWindows[mapping.ContainerId] = new List<WindowComposer>();
+                Debug.LogWarning("[WindowService] Invalid container mapping found. Skipping.");
+                continue;
             }
+
+            _containers[mapping.ContainerId] = mapping.Root;
+            _activeWindows[mapping.ContainerId] = new List<WindowComposer>();
         }
     }
 
     public async UniTask StartAsync(CancellationToken cancellation)
     {
-        foreach (var startupConfig in _startupWindows)
+        foreach (var startupWindow in _startupWindows)
         {
-            if (startupConfig.Config != null)
+            if (startupWindow.Config == null) continue;
+            
+            var viewModelType = startupWindow.Config.ViewModelType;
+            if (viewModelType != null)
             {
-                await ExecuteShowAsync(startupConfig.Config, null, startupConfig.ContainerId, startupConfig.StackMode, cancellation);
+                var viewModel = _resolver.Resolve(viewModelType);
+                await ExecuteShowAsync(startupWindow.Config, viewModel, startupWindow.ContainerId, startupWindow.StackMode, cancellation);
+            }
+            else
+            {
+                Debug.LogError($"[WindowService] Startup WindowConfig '{startupWindow.Config.name}' is missing a mapped ViewModel Type.");
             }
         }
     }
@@ -74,95 +90,81 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
         return new WindowBuilder<TViewModel>(this, config);
     }
 
-    public async UniTask ShowAsync(WindowConfig config, string containerId = null, StackMode? stackMode = null, CancellationToken cancellationToken = default)
+    public UniTask ShowAsync<TViewModel>(WindowConfig config, CancellationToken cancellationToken = default) where TViewModel : class
     {
-        await ExecuteShowAsync(config, null, containerId, stackMode, cancellationToken);
+        var viewModel = _resolver.Resolve<TViewModel>();
+        return ExecuteShowAsync(config, viewModel, null, null, cancellationToken);
     }
 
-    internal async UniTask ExecuteShowAsync(WindowConfig config, object prebuiltViewModel, string containerId, StackMode? stackMode, CancellationToken cancellationToken)
+    public UniTask ShowAsync<TViewModel>(WindowConfig config, TViewModel viewModel, StackMode stackMode = StackMode.Push, CancellationToken cancellationToken = default) where TViewModel : class
     {
-        var targetContainerId = string.IsNullOrEmpty(containerId) ? config.DefaultContainerId : containerId;
-
-        if (!_containers.TryGetValue(targetContainerId, out var containerRoot))
-        {
-            Debug.LogError($"[WindowService] Container ID '{targetContainerId}' not found.");
-            return;
-        }
-
-        var mode = stackMode ?? config.DefaultStackMode;
-        var windowList = _activeWindows[targetContainerId];
-
-        // 1. Process Stack Mode Intent
-        if (mode == StackMode.Clear)
-        {
-            foreach (var window in windowList)
-            {
-                await window.HideAsync();
-                if (window != null && window.gameObject != null) Destroy(window.gameObject);
-            }
-            windowList.Clear();
-        }
-        else if (mode == StackMode.Replace)
-        {
-            if (windowList.Count > 0)
-            {
-                var topWindow = windowList[windowList.Count - 1];
-                await topWindow.HideAsync();
-                if (topWindow != null && topWindow.gameObject != null) Destroy(topWindow.gameObject);
-                windowList.RemoveAt(windowList.Count - 1);
-            }
-        }
-
-        // 2. Resolve & Instantiate
-        object viewModel = prebuiltViewModel;
-
-        if (viewModel == null)
-        {
-            var viewModelType = config.ViewModelType;
-            if (viewModelType == null)
-            {
-                Debug.LogError($"[WindowService] Config '{config.name}' does not map to a valid ViewModel type.");
-                return;
-            }
-
-            try
-            {
-                viewModel = _resolver.Resolve(viewModelType);
-            }
-            catch (Exception ex)
-            {
-                Debug.LogError($"[WindowService] Failed to resolve ViewModel '{viewModelType.Name}'. Exception: {ex.Message}");
-                return;
-            }
-        }
-
-        var prefabInstance = Instantiate(config.Prefab, containerRoot);
-        var composer = prefabInstance.GetComponent<WindowComposer>();
-
-        if (composer == null)
-        {
-            Debug.LogError($"[WindowService] Prefab '{config.Prefab.name}' is missing a WindowComposer component.");
-            Destroy(prefabInstance);
-            return;
-        }
-
-        composer.BindBoxed(viewModel);
-        
-        // 3. Track & Show
-        windowList.Add(composer);
-        await composer.ShowAsync();
+        return ExecuteShowAsync(config, viewModel, null, stackMode, cancellationToken);
     }
 
-    public async UniTask<TResult> ShowModalAsync<TViewModel, TResult>(
-        WindowConfig config, 
-        TViewModel modalViewModel, 
-        string containerId = null, 
-        StackMode stackMode = StackMode.Push, 
-        CancellationToken cancellationToken = default) 
+    public async UniTask<TResult> ShowModalAsync<TViewModel, TResult>(WindowConfig config, TViewModel modalViewModel, string containerId = null, StackMode stackMode = StackMode.Push, CancellationToken cancellationToken = default) 
         where TViewModel : class, IModalViewModel<TResult>
     {
         await ExecuteShowAsync(config, modalViewModel, containerId, stackMode, cancellationToken);
         return await modalViewModel.ResultTask;
+    }
+
+    internal async UniTask ExecuteShowAsync(WindowConfig config, object viewModel, string containerIdOverride, StackMode? modeOverride, CancellationToken cancellationToken)
+    {
+        var targetContainer = string.IsNullOrEmpty(containerIdOverride) ? config.DefaultContainerId : containerIdOverride;
+        var stackMode = modeOverride ?? config.DefaultStackMode;
+
+        if (!_containers.TryGetValue(targetContainer, out var parentRect))
+        {
+            Debug.LogError($"[WindowService] Container ID '{targetContainer}' not found. Cannot show window.");
+            return;
+        }
+
+        if (!_activeWindows.TryGetValue(targetContainer, out var list))
+        {
+            list = new List<WindowComposer>();
+            _activeWindows[targetContainer] = list;
+        }
+
+        if (stackMode == StackMode.Replace || stackMode == StackMode.Clear)
+        {
+            await HideAsync(targetContainer, cancellationToken);
+        }
+
+        if (viewModel == null && config.ViewModelType != null)
+        {
+            viewModel = _resolver.Resolve(config.ViewModelType);
+        }
+
+        var instance = Instantiate(config.Prefab, parentRect, false);
+        var composer = instance.GetComponent<WindowComposer>();
+        
+        list.Add(composer);
+        
+        if (viewModel != null)
+        {
+            composer.BindBoxed(viewModel);
+        }
+        else
+        {
+            Debug.LogWarning($"[WindowService] No ViewModel provided or mapped for '{config.name}'. Binding skipped.");
+        }
+        
+        await composer.ShowAsync();
+
+        if (cancellationToken != default && cancellationToken.CanBeCanceled)
+        {
+            cancellationToken.Register(() => 
+            {
+                if (viewModel != null)
+                {
+                    HideAsync(viewModel).Forget(); 
+                }
+                else
+                {
+                    HideAsync(targetContainer).Forget();
+                }
+            });
+        }
     }
 
     public async UniTask HideAsync<TViewModel>(TViewModel viewModel, CancellationToken cancellationToken = default) where TViewModel : class
@@ -170,7 +172,6 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
         foreach (var kvp in _activeWindows)
         {
             var list = kvp.Value;
-            // Iterate top-down to handle popped modals cleanly
             for (int i = list.Count - 1; i >= 0; i--)
             {
                 if (list[i].HasViewModel(viewModel))
@@ -179,7 +180,7 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
                     await window.HideAsync();
                     if (window != null && window.gameObject != null) Destroy(window.gameObject);
                     list.RemoveAt(i);
-                    return; // Break immediately once target is eliminated
+                    return; 
                 }
             }
         }
@@ -194,5 +195,49 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
             if (topWindow != null && topWindow.gameObject != null) Destroy(topWindow.gameObject);
             list.RemoveAt(list.Count - 1);
         }
+    }
+
+    public CancellationToken GetOrCreateFlowToken(string flowId)
+    {
+        if (!_flowTokens.TryGetValue(flowId, out var cts) || cts.IsCancellationRequested)
+        {
+            cts = new CancellationTokenSource();
+            _flowTokens[flowId] = cts;
+        }
+        return cts.Token;
+    }
+
+    public void CancelFlow(string flowId)
+    {
+        if (_flowTokens.TryGetValue(flowId, out var cts))
+        {
+            cts.Cancel();
+            cts.Dispose();
+            _flowTokens.Remove(flowId);
+        }
+    }
+
+    public bool RouteHardwareBack()
+    {
+        string[] containerPriorities = { "ModalOverlay", "MainScreen", "Background" };
+
+        foreach (var containerId in containerPriorities)
+        {
+            if (_activeWindows.TryGetValue(containerId, out var list) && list.Count > 0)
+            {
+                for (int i = list.Count - 1; i >= 0; i--)
+                {
+                    var windowComposer = list[i];
+                    
+                    if (windowComposer.GetViewModelBoxed() is IHardwareBackHandler backHandler)
+                    {
+                        bool consumed = backHandler.OnBackRequested();
+                        if (consumed) return true;
+                    }
+                }
+            }
+        }
+
+        return false;
     }
 }

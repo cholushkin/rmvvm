@@ -1,4 +1,4 @@
-// todo: Abstract LitMotion logic into a base transition class
+// todo: Abstract DoTween or LitMotion logic into a base transition class
 // todo: Add 'OnRefresh' hook for ViewModel updates without reopening
 
 using System;
@@ -10,6 +10,9 @@ public abstract class WindowComposer : MonoBehaviour
     public abstract Type GetViewModelType();
     public abstract void BindBoxed(object viewModel);
     public abstract bool HasViewModel(object viewModel);
+    
+    // Exposes the boxed ViewModel to the non-generic routing service
+    public abstract object GetViewModelBoxed();
 
     public virtual UniTask ShowAsync()
     {
@@ -46,11 +49,13 @@ public abstract class WindowComposer<TViewModel> : WindowComposer where TViewMod
     {
         return ViewModel == viewModel;
     }
+    
+    public override object GetViewModelBoxed() => ViewModel;
 
     protected abstract void Bind(TViewModel viewModel);
 
     protected virtual void OnDestroy()
     {
-        // R3 bindings hooked to destroyCancellationToken will natively dispose here.
+        // R3 bindings hooked to destroyCancellationToken will clean up automatically
     }
 }
