@@ -1,6 +1,4 @@
-// todo: Add 'OnRefresh' hook for ViewModel updates without reopening (currently handled implicitly by R3)
 // todo: Inject or configure containerPriorities array in RouteHardwareBack instead of hardcoding it
-// idea: We could potentially use the _containerMappings inspector order for hardware back priorities
 // idea: Object pooling for WindowComposers instead of absolute Object.Destroy()
 
 using System;
@@ -39,7 +37,6 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
 
     private IObjectResolver _resolver;
     private readonly Dictionary<string, RectTransform> _containers = new();
-    
     private readonly Dictionary<string, List<WindowComposer>> _activeWindows = new();
     private readonly Dictionary<string, CancellationTokenSource> _flowTokens = new();
 
@@ -47,7 +44,7 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
     public void Construct(IObjectResolver resolver)
     {
         _resolver = resolver;
-        
+
         foreach (var mapping in _containerMappings)
         {
             if (string.IsNullOrEmpty(mapping.ContainerId) || mapping.Root == null)
@@ -66,7 +63,7 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
         foreach (var startupWindow in _startupWindows)
         {
             if (startupWindow.Config == null) continue;
-            
+
             var viewModelType = startupWindow.Config.ViewModelType;
             if (viewModelType != null)
             {
@@ -101,7 +98,7 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
         return ExecuteShowAsync(config, viewModel, null, stackMode, cancellationToken);
     }
 
-    public async UniTask<TResult> ShowModalAsync<TViewModel, TResult>(WindowConfig config, TViewModel modalViewModel, string containerId = null, StackMode stackMode = StackMode.Push, CancellationToken cancellationToken = default) 
+    public async UniTask<TResult> ShowModalAsync<TViewModel, TResult>(WindowConfig config, TViewModel modalViewModel, string containerId = null, StackMode stackMode = StackMode.Push, CancellationToken cancellationToken = default)
         where TViewModel : class, IModalViewModel<TResult>
     {
         await ExecuteShowAsync(config, modalViewModel, containerId, stackMode, cancellationToken);
@@ -137,9 +134,9 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
 
         var instance = Instantiate(config.Prefab, parentRect, false);
         var composer = instance.GetComponent<WindowComposer>();
-        
+
         list.Add(composer);
-        
+
         if (viewModel != null)
         {
             composer.BindBoxed(viewModel);
@@ -148,16 +145,16 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
         {
             Debug.LogWarning($"[WindowService] No ViewModel provided or mapped for '{config.name}'. Binding skipped.");
         }
-        
+
         await composer.ShowAsync();
 
         if (cancellationToken != default && cancellationToken.CanBeCanceled)
         {
-            cancellationToken.Register(() => 
+            cancellationToken.Register(() =>
             {
                 if (viewModel != null)
                 {
-                    HideAsync(viewModel).Forget(); 
+                    HideAsync(viewModel).Forget();
                 }
                 else
                 {
@@ -180,7 +177,7 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
                     await window.HideAsync();
                     if (window != null && window.gameObject != null) Destroy(window.gameObject);
                     list.RemoveAt(i);
-                    return; 
+                    return;
                 }
             }
         }
@@ -228,7 +225,12 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
                 for (int i = list.Count - 1; i >= 0; i--)
                 {
                     var windowComposer = list[i];
-                    
+
+                    if (windowComposer.IsAnimating)
+                    {
+                        return true; 
+                    }
+
                     if (windowComposer.GetViewModelBoxed() is IHardwareBackHandler backHandler)
                     {
                         bool consumed = backHandler.OnBackRequested();

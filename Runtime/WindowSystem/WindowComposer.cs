@@ -1,29 +1,94 @@
-// todo: Abstract DoTween or LitMotion logic into a base transition class
-// todo: Add 'OnRefresh' hook for ViewModel updates without reopening
+// todo: Cache IWindowTransition and CanvasGroup in Awake to avoid GetComponent allocations
+// idea: Expose public events for OnWindowShown and OnWindowHidden
 
 using System;
+using System.Threading;
 using Cysharp.Threading.Tasks;
+using Game.UI.WindowSystem.Transitions;
 using UnityEngine;
 
 public abstract class WindowComposer : MonoBehaviour
 {
+    public bool IsAnimating { get; private set; }
+
     public abstract Type GetViewModelType();
     public abstract void BindBoxed(object viewModel);
     public abstract bool HasViewModel(object viewModel);
-    
-    // Exposes the boxed ViewModel to the non-generic routing service
     public abstract object GetViewModelBoxed();
 
     public virtual UniTask ShowAsync()
     {
         gameObject.SetActive(true);
-        return UniTask.CompletedTask;
+
+        var transition = GetComponent<IWindowTransition>();
+        if (transition == null)
+        {
+            return UniTask.CompletedTask;
+        }
+
+        return PlayTransitionAsync(transition, true, destroyCancellationToken);
     }
 
     public virtual UniTask HideAsync()
     {
-        gameObject.SetActive(false);
-        return UniTask.CompletedTask;
+        var transition = GetComponent<IWindowTransition>();
+        if (transition == null)
+        {
+            if (this != null && gameObject != null) gameObject.SetActive(false);
+            return UniTask.CompletedTask;
+        }
+
+        return HideWithTransitionAsync(transition);
+    }
+
+
+    private async UniTask PlayTransitionAsync(IWindowTransition transition, bool isShowing, CancellationToken ct)
+    {
+        IsAnimating = true;
+
+        var canvasGroup = GetComponent<CanvasGroup>();
+        bool originalInteractable = true;
+
+        if (canvasGroup != null)
+        {
+            originalInteractable = canvasGroup.interactable;
+            canvasGroup.interactable = false;
+        }
+
+        try
+        {
+            if (isShowing)
+            {
+                await transition.PlayShowAsync(ct);
+            }
+            else
+            {
+                await transition.PlayHideAsync(ct);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Transition cancelled via destruction or manual token, swallow to prevent errors
+        }
+        finally
+        {
+            IsAnimating = false;
+
+            if (canvasGroup != null)
+            {
+                canvasGroup.interactable = originalInteractable;
+            }
+        }
+    }
+
+    private async UniTask HideWithTransitionAsync(IWindowTransition transition)
+    {
+        await PlayTransitionAsync(transition, false, destroyCancellationToken);
+
+        if (this != null && gameObject != null)
+        {
+            gameObject.SetActive(false);
+        }
     }
 }
 
@@ -49,7 +114,7 @@ public abstract class WindowComposer<TViewModel> : WindowComposer where TViewMod
     {
         return ViewModel == viewModel;
     }
-    
+
     public override object GetViewModelBoxed() => ViewModel;
 
     protected abstract void Bind(TViewModel viewModel);
