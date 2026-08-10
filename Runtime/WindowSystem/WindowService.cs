@@ -104,6 +104,23 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
         await ExecuteShowAsync(config, modalViewModel, containerId, stackMode, cancellationToken);
         return await modalViewModel.ResultTask;
     }
+    
+    public async UniTask<TResult> ShowModalAsync<TViewModel, TResult>(
+        WindowConfig config, 
+        Action<TViewModel> setup = null, 
+        string containerId = null, 
+        StackMode stackMode = StackMode.Push, 
+        CancellationToken cancellationToken = default)
+        where TViewModel : class, IModalViewModel<TResult>
+    {
+        var viewModel = _resolver.Resolve<TViewModel>();
+        
+        // Apply the specific string parameters for the popup
+        setup?.Invoke(viewModel);
+
+        await ExecuteShowAsync(config, viewModel, containerId, stackMode, cancellationToken);
+        return await viewModel.ResultTask;
+    }
 
     internal async UniTask ExecuteShowAsync(WindowConfig config, object viewModel, string containerIdOverride, StackMode? modeOverride, CancellationToken cancellationToken)
     {

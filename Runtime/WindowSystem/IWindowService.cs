@@ -1,6 +1,7 @@
 // todo: Implement Addressables asynchronous loading signature for WindowConfig.Prefab
 // idea: Expose a way to dynamically register container priorities for hardware back routing
 
+using System;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 
@@ -17,6 +18,9 @@ namespace Game.UI.WindowSystem
         UniTask ShowAsync<TViewModel>(WindowConfig config, TViewModel viewModel, StackMode stackMode = StackMode.Push, CancellationToken cancellationToken = default) where TViewModel : class;
         
         UniTask<TResult> ShowModalAsync<TViewModel, TResult>(WindowConfig config, TViewModel modalViewModel, string containerId = null, StackMode stackMode = StackMode.Push, CancellationToken cancellationToken = default) where TViewModel : class, IModalViewModel<TResult>;
+
+        UniTask<TResult> ShowModalAsync<TViewModel, TResult>(WindowConfig config, Action<TViewModel> setup = null, string containerId = null, StackMode stackMode = StackMode.Push,
+            CancellationToken cancellationToken = default) where TViewModel : class, IModalViewModel<TResult>;
         
         UniTask HideAsync<TViewModel>(TViewModel viewModel, CancellationToken cancellationToken = default) where TViewModel : class;
         
