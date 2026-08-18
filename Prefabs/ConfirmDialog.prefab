@@ -12,7 +12,6 @@ GameObject:
   - component: {fileID: 4734827987380713633}
   - component: {fileID: 3795379109701228571}
   - component: {fileID: 8004742193571791214}
-  - component: {fileID: 6702597592680750468}
   m_Layer: 5
   m_Name: AlwaysSquareWindow
   m_TagString: Untagged
@@ -92,24 +91,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.AspectRatioFitter
   m_AspectMode: 3
   m_AspectRatio: 1
---- !u!114 &6702597592680750468
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 866039219610018779}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: f7ee2c60dae89b449971c6091bd2a473, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: RMVVM::Game.UI.Dialogs.ConfirmDialogComposer
-  _titleText: {fileID: 2905203800874155783}
-  _messageText: {fileID: 3212384802620311341}
-  _confirmButtonText: {fileID: 0}
-  _cancelButtonText: {fileID: 0}
-  _confirmButton: {fileID: 0}
-  _cancelButton: {fileID: 0}
 --- !u!1 &992341452026076297
 GameObject:
   m_ObjectHideFlags: 0
@@ -390,6 +371,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 5928652505175513912}
+  - component: {fileID: 3495883747873686259}
   m_Layer: 5
   m_Name: ConfirmDialog
   m_TagString: Untagged
@@ -418,6 +400,24 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &3495883747873686259
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2406751911232181443}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f7ee2c60dae89b449971c6091bd2a473, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: RMVVM::Game.UI.Dialogs.ConfirmDialogComposer
+  _titleText: {fileID: 2905203800874155783}
+  _messageText: {fileID: 3212384802620311341}
+  _confirmButtonText: {fileID: 2539304579105147687}
+  _cancelButtonText: {fileID: 5974798769388524453}
+  _confirmButton: {fileID: 3272678221947815230}
+  _cancelButton: {fileID: 3885118021094724383}
 --- !u!1 &5596580768301802252
 GameObject:
   m_ObjectHideFlags: 0
@@ -726,7 +726,7 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 32
+  m_fontSize: 19
   m_fontSizeBase: 36
   m_fontWeight: 400
   m_enableAutoSizing: 1
@@ -911,7 +911,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_text: OK
+  m_text: CONFIRM
   m_isRightToLeft: 0
   m_fontAsset: {fileID: 11400000, guid: 150296e7429cde245a94206b3faf869a, type: 2}
   m_sharedMaterial: {fileID: 21709761368925862, guid: 150296e7429cde245a94206b3faf869a, type: 2}
@@ -1215,7 +1215,7 @@ GameObject:
   - component: {fileID: 1099140176455332662}
   - component: {fileID: 3272678221947815230}
   m_Layer: 5
-  m_Name: OK
+  m_Name: Confirm
   m_TagString: Untagged
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0

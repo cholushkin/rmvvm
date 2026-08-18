@@ -302,6 +302,7 @@ GameObject:
   serializedVersion: 6
   m_Component:
   - component: {fileID: 8697755802131987254}
+  - component: {fileID: 1537841585719472481}
   m_Layer: 5
   m_Name: AlertDialog
   m_TagString: Untagged
@@ -330,6 +331,22 @@ RectTransform:
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
   m_Pivot: {x: 0.5, y: 0.5}
+--- !u!114 &1537841585719472481
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3338513665433511246}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 473dd990cff85cb4683748ec67490b46, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: RMVVM::Game.UI.Dialogs.AlertDialogComposer
+  _titleText: {fileID: 306817650490882102}
+  _messageText: {fileID: 3616833108489350548}
+  _okButtonText: {fileID: 2894287308986673424}
+  _okButton: {fileID: 1501279396086203707}
 --- !u!1 &3590439563770696755
 GameObject:
   m_ObjectHideFlags: 0
@@ -629,7 +646,6 @@ GameObject:
   - component: {fileID: 8480918924214060868}
   - component: {fileID: 5603527179306010278}
   - component: {fileID: 336433870885566436}
-  - component: {fileID: 7262813819273242041}
   m_Layer: 5
   m_Name: AlwaysSquareWindow
   m_TagString: Untagged
@@ -709,22 +725,6 @@ MonoBehaviour:
   m_EditorClassIdentifier: UnityEngine.UI::UnityEngine.UI.AspectRatioFitter
   m_AspectMode: 3
   m_AspectRatio: 1
---- !u!114 &7262813819273242041
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 5437331490795564069}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 473dd990cff85cb4683748ec67490b46, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: RMVVM::Game.UI.Dialogs.AlertDialogComposer
-  _titleText: {fileID: 306817650490882102}
-  _messageText: {fileID: 3616833108489350548}
-  _okButtonText: {fileID: 2894287308986673424}
-  _okButton: {fileID: 1501279396086203707}
 --- !u!1 &5706812921692602467
 GameObject:
   m_ObjectHideFlags: 0
@@ -896,7 +896,7 @@ MonoBehaviour:
   m_faceColor:
     serializedVersion: 2
     rgba: 4294967295
-  m_fontSize: 32
+  m_fontSize: 19
   m_fontSizeBase: 36
   m_fontWeight: 400
   m_enableAutoSizing: 1

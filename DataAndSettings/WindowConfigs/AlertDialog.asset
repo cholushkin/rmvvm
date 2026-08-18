@@ -12,6 +12,6 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: accc3c4bb1da17e469d6da5709bedae2, type: 3}
   m_Name: AlertDialog
   m_EditorClassIdentifier: RMVVM::WindowConfig
-  DefaultContainerId: MainScreen
+  DefaultContainerId: SystemMessages
   DefaultStackMode: 1
   Prefab: {fileID: 3338513665433511246, guid: 01be5cba06a438c46a0ab55f9fd10089, type: 3}
