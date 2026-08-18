@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace Game.UI.WindowSystem
 {
-    [CreateAssetMenu(menuName = "Game/UI/Window Database", fileName = "WindowDatabase")]
+    [CreateAssetMenu(menuName = "GameLib/UI/Window Database", fileName = "WindowDatabase")]
     public sealed class WindowDatabase : ScriptableObject
     {
         [Tooltip("Assign all your WindowConfig assets here.")]

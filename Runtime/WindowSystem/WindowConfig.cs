@@ -5,7 +5,7 @@ using System;
 using Game.UI.WindowSystem;
 using UnityEngine;
 
-[CreateAssetMenu(menuName = "Game/UI/Window Config", fileName = "WindowConfig")]
+[CreateAssetMenu(menuName = "GameLib/UI/Window Config", fileName = "WindowConfig")]
 public class WindowConfig : ScriptableObject
 {
     [Tooltip("The default layout root this window should spawn in (e.g., 'MainScreen'). Can be overridden via the WindowBuilder.")]
@@ -17,9 +17,7 @@ public class WindowConfig : ScriptableObject
     [Tooltip("The actual UI Prefab GameObject. It MUST have a script attached that inherits from WindowComposer.")]
     public GameObject Prefab;
 
-    /// <summary>
     /// Dynamically evaluates the required ViewModel type by inspecting the assigned Prefab's Composer.
-    /// </summary>
     public Type ViewModelType
     {
         get
