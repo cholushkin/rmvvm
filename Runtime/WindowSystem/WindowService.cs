@@ -102,7 +102,9 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
         where TViewModel : class, IModalViewModel<TResult>
     {
         await ExecuteShowAsync(config, modalViewModel, containerId, stackMode, cancellationToken);
-        return await modalViewModel.ResultTask;
+        var result = await modalViewModel.ResultTask;
+        await HideAsync(modalViewModel, cancellationToken);
+        return result;
     }
     
     public async UniTask<TResult> ShowModalAsync<TViewModel, TResult>(
@@ -119,7 +121,9 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
         setup?.Invoke(viewModel);
 
         await ExecuteShowAsync(config, viewModel, containerId, stackMode, cancellationToken);
-        return await viewModel.ResultTask;
+        var result = await viewModel.ResultTask;
+        await HideAsync(viewModel, cancellationToken);
+        return result;
     }
 
     internal async UniTask ExecuteShowAsync(WindowConfig config, object viewModel, string containerIdOverride, StackMode? modeOverride, CancellationToken cancellationToken)

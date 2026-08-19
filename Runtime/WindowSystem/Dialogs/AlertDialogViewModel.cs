@@ -1,6 +1,3 @@
-// todo: Support RichText tags filtering in case the message comes from an untrusted source
-// idea: Allow mapping different severities (Info, Warning, Error) to change the popup theme
-
 using Cysharp.Threading.Tasks;
 using Game.UI.WindowSystem;
 
@@ -12,7 +9,8 @@ namespace Game.UI.Dialogs
         public string Message { get; private set; }
         public string OkText { get; private set; }
 
-        private UniTaskCompletionSource<bool> _tcs;
+        
+        private readonly UniTaskCompletionSource<bool> _tcs = new();
 
         public UniTask<bool> ResultTask => _tcs.Task;
 
@@ -21,10 +19,11 @@ namespace Game.UI.Dialogs
             Title = title;
             Message = message;
             OkText = okText;
-            
-            _tcs = new UniTaskCompletionSource<bool>();
         }
 
-        public void Acknowledge() => _tcs.TrySetResult(true);
+        public void Acknowledge()
+        {            
+            _tcs.TrySetResult(true);
+        }
     }
 }
