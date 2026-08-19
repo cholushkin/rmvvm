@@ -40,6 +40,24 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
     private readonly Dictionary<string, List<WindowComposer>> _activeWindows = new();
     private readonly Dictionary<string, CancellationTokenSource> _flowTokens = new();
 
+    // Strict teardown flag
+    private bool _isQuitting;
+
+    private void Awake()
+    {
+        Application.quitting += OnApplicationQuitting;
+    }
+
+    private void OnDestroy()
+    {
+        Application.quitting -= OnApplicationQuitting;
+    }
+
+    private void OnApplicationQuitting()
+    {
+        _isQuitting = true;
+    }
+
     [Inject]
     public void Construct(IObjectResolver resolver)
     {
@@ -117,7 +135,6 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
     {
         var viewModel = _resolver.Resolve<TViewModel>();
         
-        // Apply the specific string parameters for the popup
         setup?.Invoke(viewModel);
 
         await ExecuteShowAsync(config, viewModel, containerId, stackMode, cancellationToken);
@@ -128,6 +145,8 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
 
     internal async UniTask ExecuteShowAsync(WindowConfig config, object viewModel, string containerIdOverride, StackMode? modeOverride, CancellationToken cancellationToken)
     {
+        if (_isQuitting) return;
+
         var targetContainer = string.IsNullOrEmpty(containerIdOverride) ? config.DefaultContainerId : containerIdOverride;
         var stackMode = modeOverride ?? config.DefaultStackMode;
 
@@ -173,6 +192,9 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
         {
             cancellationToken.Register(() =>
             {
+                // The architectural fix: bypass during teardown
+                if (_isQuitting) return; 
+
                 if (viewModel != null)
                 {
                     HideAsync(viewModel).Forget();
@@ -187,14 +209,17 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
 
     public async UniTask HideAsync<TViewModel>(TViewModel viewModel, CancellationToken cancellationToken = default) where TViewModel : class
     {
+        if (_isQuitting) return;
+
         foreach (var kvp in _activeWindows)
         {
             var list = kvp.Value;
             for (int i = list.Count - 1; i >= 0; i--)
             {
-                if (list[i].HasViewModel(viewModel))
+                var window = list[i];
+                
+                if (window.HasViewModel(viewModel))
                 {
-                    var window = list[i];
                     await window.HideAsync();
                     if (window != null && window.gameObject != null) Destroy(window.gameObject);
                     list.RemoveAt(i);
@@ -206,12 +231,15 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
 
     public async UniTask HideAsync(string containerId, CancellationToken cancellationToken = default)
     {
+        if (_isQuitting) return;
+
         if (_activeWindows.TryGetValue(containerId, out var list) && list.Count > 0)
         {
             var topWindow = list[list.Count - 1];
+            list.RemoveAt(list.Count - 1);
+            
             await topWindow.HideAsync();
             if (topWindow != null && topWindow.gameObject != null) Destroy(topWindow.gameObject);
-            list.RemoveAt(list.Count - 1);
         }
     }
 
@@ -237,6 +265,8 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
 
     public bool RouteHardwareBack()
     {
+        if (_isQuitting) return false;
+
         string[] containerPriorities = { "ModalOverlay", "MainScreen", "Background" };
 
         foreach (var containerId in containerPriorities)

@@ -34,7 +34,7 @@ public abstract class WindowComposer : MonoBehaviour
         var transition = GetComponent<IWindowTransition>();
         if (transition == null)
         {
-            if (this != null && gameObject != null) gameObject.SetActive(false);
+            if (gameObject != null) gameObject.SetActive(false);
             return UniTask.CompletedTask;
         }
 
@@ -47,7 +47,7 @@ public abstract class WindowComposer : MonoBehaviour
         IsAnimating = true;
 
         var canvasGroup = GetComponent<CanvasGroup>();
-        bool originalInteractable = true;
+        bool originalInteractable = false;
 
         if (canvasGroup != null)
         {
@@ -66,17 +66,17 @@ public abstract class WindowComposer : MonoBehaviour
                 await transition.PlayHideAsync(ct);
             }
         }
-        catch (OperationCanceledException)
-        {
-            // Transition cancelled via destruction or manual token, swallow to prevent errors
-        }
         finally
         {
-            IsAnimating = false;
-
-            if (canvasGroup != null)
+            // Standard cleanup, assuming standard runtime execution.
+            if (this != null) 
             {
-                canvasGroup.interactable = originalInteractable;
+                IsAnimating = false;
+
+                if (canvasGroup != null)
+                {
+                    canvasGroup.interactable = originalInteractable;
+                }
             }
         }
     }
@@ -121,6 +121,6 @@ public abstract class WindowComposer<TViewModel> : WindowComposer where TViewMod
 
     protected virtual void OnDestroy()
     {
-        // R3 bindings hooked to destroyCancellationToken will clean up automatically
+        // R3 bindings hooked to destroyCancellationToken will clean up automatically.
     }
 }
