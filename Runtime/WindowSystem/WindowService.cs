@@ -6,12 +6,15 @@ using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
 using Game.UI.WindowSystem;
+using R3;
 using UnityEngine;
 using VContainer;
 using VContainer.Unity;
 
 public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartable
 {
+    private static readonly List<WindowComposer> EmptyWindowList = new();
+
     [Serializable]
     public struct ContainerMapping
     {
@@ -39,6 +42,7 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
     private readonly Dictionary<string, RectTransform> _containers = new();
     private readonly Dictionary<string, List<WindowComposer>> _activeWindows = new();
     private readonly Dictionary<string, CancellationTokenSource> _flowTokens = new();
+    private readonly Subject<WindowStackChange> _stackChanged = new();
 
     // Strict teardown flag
     private bool _isQuitting;
@@ -51,6 +55,7 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
     private void OnDestroy()
     {
         Application.quitting -= OnApplicationQuitting;
+        _stackChanged.Dispose();
     }
 
     private void OnApplicationQuitting()
@@ -176,6 +181,7 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
         var composer = instance.GetComponent<WindowComposer>();
 
         list.Add(composer);
+        _stackChanged.OnNext(new WindowStackChange(targetContainer, composer, list.Count, WindowStackChangeKind.Added));
 
         if (viewModel != null)
         {
@@ -223,6 +229,7 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
                     await window.HideAsync();
                     if (window != null && window.gameObject != null) Destroy(window.gameObject);
                     list.RemoveAt(i);
+                    _stackChanged.OnNext(new WindowStackChange(kvp.Key, window, list.Count, WindowStackChangeKind.Removed));
                     return;
                 }
             }
@@ -237,9 +244,10 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
         {
             var topWindow = list[list.Count - 1];
             list.RemoveAt(list.Count - 1);
-            
+
             await topWindow.HideAsync();
             if (topWindow != null && topWindow.gameObject != null) Destroy(topWindow.gameObject);
+            _stackChanged.OnNext(new WindowStackChange(containerId, topWindow, list.Count, WindowStackChangeKind.Removed));
         }
     }
 
@@ -292,5 +300,17 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
         }
 
         return false;
+    }
+
+    public Observable<WindowStackChange> ObserveStackChanged() => _stackChanged;
+
+    public int GetActiveWindowCount(string containerId)
+    {
+        return _activeWindows.TryGetValue(containerId, out var list) ? list.Count : 0;
+    }
+
+    public IReadOnlyList<WindowComposer> GetActiveWindows(string containerId)
+    {
+        return _activeWindows.TryGetValue(containerId, out var list) ? list : EmptyWindowList;
     }
 }

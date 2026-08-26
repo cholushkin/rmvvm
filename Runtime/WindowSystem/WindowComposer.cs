@@ -1,5 +1,8 @@
 // todo: Cache IWindowTransition and CanvasGroup in Awake to avoid GetComponent allocations
 // idea: Expose public events for OnWindowShown and OnWindowHidden
+//   -> addressed at the service level instead: IWindowService.ObserveStackChanged() reports
+//      add/remove per container, which is what input-gating and similar cross-cutting concerns need
+//      without every composer having to wire its own event.
 
 using System;
 using System.Threading;

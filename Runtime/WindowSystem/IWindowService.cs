@@ -2,8 +2,10 @@
 // idea: Expose a way to dynamically register container priorities for hardware back routing
 
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using Cysharp.Threading.Tasks;
+using R3;
 
 namespace Game.UI.WindowSystem
 {
@@ -27,9 +29,18 @@ namespace Game.UI.WindowSystem
         UniTask HideAsync(string containerId, CancellationToken cancellationToken = default);
 
         bool RouteHardwareBack();
-        
+
         CancellationToken GetOrCreateFlowToken(string flowId);
-        
+
         void CancelFlow(string flowId);
+
+        /// Fires whenever a window is added to or removed from any container. Recomputable state
+        /// (e.g. input gating) should derive from this rather than tracking pushes/pops itself.
+        Observable<WindowStackChange> ObserveStackChanged();
+
+        int GetActiveWindowCount(string containerId);
+
+        /// Zero-alloc snapshot of the windows currently active in a container, topmost last.
+        IReadOnlyList<WindowComposer> GetActiveWindows(string containerId);
     }
 }
