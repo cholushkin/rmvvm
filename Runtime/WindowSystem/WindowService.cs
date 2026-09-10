@@ -181,8 +181,10 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
         var composer = instance.GetComponent<WindowComposer>();
 
         list.Add(composer);
-        _stackChanged.OnNext(new WindowStackChange(targetContainer, composer, list.Count, WindowStackChangeKind.Added));
 
+        // Bind before broadcasting the stack change, so a subscriber reading
+        // change.Window.GetViewModelBoxed() synchronously inside its OnNext handler sees the
+        // bound ViewModel rather than a stale/null one (Subject.OnNext dispatches synchronously).
         if (viewModel != null)
         {
             composer.BindBoxed(viewModel);
@@ -191,6 +193,8 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
         {
             Debug.LogWarning($"[WindowService] No ViewModel provided or mapped for '{config.name}'. Binding skipped.");
         }
+
+        _stackChanged.OnNext(new WindowStackChange(targetContainer, composer, list.Count, WindowStackChangeKind.Added));
 
         await composer.ShowAsync();
 
