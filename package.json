@@ -1,0 +1,17 @@
+{
+  "name": "com.qcat.rmvvm",
+  "version": "1.0.0",
+  "displayName": "rMVVM",
+  "description": "A lightweight Reactive MVVM architecture for Unity, paired with rWS (Reactive Window System) for awaitable, DI-driven UI navigation.",
+  "unity": "2021.3",
+  "keywords": ["mvvm", "reactive", "ui", "window-system", "architecture"],
+  "author": {
+    "name": "Maxim Cholushkin",
+    "email": "cholushkin@gmail.com",
+    "url": "https://sites.google.com/view/cholushkinmaximcard/home"
+  },
+  "dependencies": {},
+  "documentationUrl": "https://github.com/cholushkin/rmvvm/blob/master/README.md",
+  "changelogUrl": "https://github.com/cholushkin/rmvvm/blob/master/CHANGELOG.md",
+  "licensesUrl": "https://github.com/cholushkin/rmvvm/blob/master/LICENSE"
+}
