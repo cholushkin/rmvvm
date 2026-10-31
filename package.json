@@ -10,7 +10,9 @@
     "email": "cholushkin@gmail.com",
     "url": "https://sites.google.com/view/cholushkinmaximcard/home"
   },
-  "dependencies": {},
+  "dependencies": {
+    "jp.hadashikick.vcontainer": "1.19.0"
+  },
   "documentationUrl": "https://github.com/cholushkin/rmvvm/blob/master/README.md",
   "changelogUrl": "https://github.com/cholushkin/rmvvm/blob/master/CHANGELOG.md",
   "licensesUrl": "https://github.com/cholushkin/rmvvm/blob/master/LICENSE"
