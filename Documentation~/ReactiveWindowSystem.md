@@ -27,7 +27,7 @@ rWS is a centralized, awaitable UI routing system layered on top of rMVVM. It st
 * **Dynamic Routing:** Container IDs are strings, allowing designers to create unlimited roots in the inspector without C# enum changes.
 * **Awaitable Flow:** Modals act as async functions that return typed payloads, eliminating callback hell.
 * **VContainer Integration:** Automatically constructs and injects dependencies into ViewModels. See [rMVVM.md: Dependency Injection](rMVVM.md#4-dependency-injection-vcontainer-boundaries).
-* **Animation-Agnostic:** Decouples flow logic from animation libraries (DOTween, Animator, or plain coroutines).
+* **Animation-Agnostic:** Decouples flow logic from animation libraries (LitMotion, Animator, or plain coroutines).
 * **Observable Stack:** The window stack is a first-class reactive source (§8), so cross-cutting systems (input gating, analytics, audio) react to what's open without per-screen opt-in.
 
 ---
@@ -116,7 +116,7 @@ The rWS handles global hardware input (the "Escape" key, Android "Back" button) 
 
 rWS supports asynchronous UI transitions without coupling to any specific animation library.
 
-* **Agnostic Interface (`IWindowTransition`):** a `MonoBehaviour` interface with two `UniTask` methods, `PlayShowAsync` / `PlayHideAsync`. Attach an implementation using DOTween, `Animator`, or plain coroutines — `WindowComposer` only calls the interface.
+* **Agnostic Interface (`IWindowTransition`):** a `MonoBehaviour` interface with two `UniTask` methods, `PlayShowAsync` / `PlayHideAsync`. Attach an implementation using LitMotion, `Animator`, or plain coroutines — `WindowComposer` only calls the interface.
 * **The `IsAnimating` flag:** set on `WindowComposer` for the duration of the transition. While `true`, the composer also forces its `CanvasGroup.interactable` to `false` (restoring the original value afterward) so users can't double-click through a transition, and `RouteHardwareBack()` treats it as "consumed" (§5).
 * **No-transition fallback:** if a window prefab has no `IWindowTransition` component, `ShowAsync`/`HideAsync` just toggle `gameObject.SetActive` instantly — zero overhead, no animation.
 

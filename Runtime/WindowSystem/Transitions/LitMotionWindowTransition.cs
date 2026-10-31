@@ -1,12 +1,12 @@
 using System.Threading;
 using Cysharp.Threading.Tasks;
-using DG.Tweening;
 using Game.UI.WindowSystem.Transitions;
+using LitMotion;
 using UnityEngine;
 
 namespace Game.UI.WindowSystem
 {
-    public class DOTweenWindowTransition : MonoBehaviour, IWindowTransition
+    public class LitMotionWindowTransition : MonoBehaviour, IWindowTransition
     {
         [SerializeField] private CanvasGroup _canvasGroup;
         [SerializeField] private float _duration = 0.3f;
@@ -14,19 +14,21 @@ namespace Game.UI.WindowSystem
         public async UniTask PlayShowAsync(CancellationToken ct)
         {
             if (_canvasGroup == null) return;
-            
+
             _canvasGroup.alpha = 0f;
-            await DOTween.To(() => _canvasGroup.alpha, x => _canvasGroup.alpha = x, 1f, _duration)
-                .WithCancellation(ct);
+            await LMotion.Create(0f, 1f, _duration)
+                .Bind(_canvasGroup, static (a, cg) => cg.alpha = a)
+                .ToUniTask(cancellationToken: ct);
         }
 
         public async UniTask PlayHideAsync(CancellationToken ct)
         {
             if (_canvasGroup == null) return;
-            
+
             _canvasGroup.alpha = 1f;
-            await DOTween.To(() => _canvasGroup.alpha, x => _canvasGroup.alpha = x, 0f, _duration)
-                .WithCancellation(ct);
+            await LMotion.Create(1f, 0f, _duration)
+                .Bind(_canvasGroup, static (a, cg) => cg.alpha = a)
+                .ToUniTask(cancellationToken: ct);
         }
     }
 }

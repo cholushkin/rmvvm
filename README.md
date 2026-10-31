@@ -35,12 +35,12 @@ https://github.com/cholushkin/rmvvm.git
 
 ### Required manual dependencies
 
-RMVVM's Runtime assembly references 4 external assemblies by GUID. Based on the `using` statements in the source, these resolve to:
+RMVVM's Runtime assembly references 4 external assemblies (3 by GUID, 1 by name). Based on the `using` statements in the source, these resolve to:
 
 | Package | Source |
 |---|---|
 | [UniTask](https://github.com/Cysharp/UniTask) | Git: `https://github.com/Cysharp/UniTask.git?path=src/UniTask/Assets/Plugins/UniTask` |
-| [DOTween](https://dotween.demigiant.com/) | Asset Store / manual import (no official package-manager Git URL) |
+| [LitMotion](https://github.com/annulusgames/LitMotion) | Git: `https://github.com/annulusgames/LitMotion.git?path=src/LitMotion/Assets/LitMotion` |
 | [R3](https://github.com/Cysharp/R3) | Git: `https://github.com/Cysharp/R3.git?path=src/R3.Unity/Assets/R3.Unity` |
 | [VContainer](https://github.com/hadashiA/VContainer) | Git: `https://github.com/hadashiA/VContainer.git?path=VContainer/Assets/VContainer` |
 

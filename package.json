@@ -1,6 +1,6 @@
 {
   "name": "com.qcat.rmvvm",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "displayName": "rMVVM",
   "description": "A lightweight Reactive MVVM architecture for Unity, paired with rWS (Reactive Window System) for awaitable, DI-driven UI navigation.",
   "unity": "2021.3",
