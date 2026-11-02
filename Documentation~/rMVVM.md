@@ -1,154 +1,145 @@
-# Reactive MVVM (rMVVM) Architecture
+# Reactive MVVM (rMVVM) — Reusable Architecture
 
-**Scope:** Pure C# architecture & UI presentation patterns. For state initialization and persistence, see [DataFlow.md](DataFlow.md). For UI navigation routing, see [ReactiveWindowSystem.md](ReactiveWindowSystem.md).
+**Status:** Target architecture contract for a reusable Unity module  
+**Dependencies:** C#, Unity, VContainer, R3, ObservableCollections, VitalRouter, and an async abstraction such as UniTask where needed  
+**Related:** [DataFlow.md](DataFlow.md) · [ReactiveWindowSystem.md](ReactiveWindowSystem.md)
 
----
+> **Module boundary:** This document describes a reusable architecture package, not an individual game. It must contain no project-specific rules, data models, content IDs, screen types, or dependencies on a consuming game's assemblies. Games depend on this module, not the reverse.
 
-## 1. Core Philosophy
+## 1. Purpose and design priorities
 
-rMVVM is designed for small teams prioritizing rapid iteration, minimal boilerplate, and maintainable UI code. It uses **VContainer** for dependency injection and **R3** for reactive state, enabling clean separation of concerns without heavyweight frameworks.
+The goal is readable, testable presentation and gameplay code for small teams without obligating each visual element to use a heavyweight MVVM stack.
 
-**Key Objectives:**
+1. **State is observable; behavior has explicit owners.** R3 exposes changing values, ObservableCollections handles dynamic lists, and domain/application services enforce gameplay rules.
+2. **Both direct service calls and VitalRouter are valid.** Choose on coupling and semantics, not a mandatory command-bus rule.
+3. **Presentation logic is independent of a specific UI technology.** ViewModels should not reference uGUI or UI Toolkit components. Ordinary Unity value types and assets (for example `Sprite` or `Vector2`) may be used where practical; absolute Unity independence is optional.
+4. **Prefer fewer classes.** A ViewModel is useful where presentation logic, computed state, or reactive behavior warrants it; simple labels and icons need no standalone MVVM triad.
+5. **VContainer owns dependency construction; rWS owns window routing.** A Composer is the required adapter for an rWS window root, not an obligatory extra layer for every nested widget.
+6. **Explicit lifetimes beat global singletons.** A screen ViewModel normally lives for an opening, and session state belongs to the session scope. See [DataFlow.md](DataFlow.md).
 
-* **Rendering-Agnostic Frontend:** Logic remains identical whether the underlying UI is uGUI (Canvas) or UI Toolkit (UITK).
-* **Low Boilerplate:** Minimal files to stand up a screen. Avoid over-engineering pure presentation (use Dumb Views for simple components instead of full MVVM triads).
-* **Strict DI Boundaries:** VContainer handles pure C#→C# wiring (Services → ViewModels). Composers bridge C# → Unity, never mixing the two concerns.
-* **State vs. Intent Division:** Continuous state flows through R3 observables; discrete one-time actions flow through VitalRouter commands (see §2).
+## 2. Responsibilities
 
----
+| Component | Owns | Does not own |
+| --- | --- | --- |
+| **Definition/configuration** | Static designer-authored data, validation, small configuration-local formulas | Mutable game-session state or UI subscriptions |
+| **Model** | Authoritative runtime state, simple invariant-preserving methods and computed getters | UI formatting, window routing, scene object lifetimes |
+| **Domain/application service** | Operations, validation, coordinated state changes, timers and side effects | UI rendering and widget layout |
+| **ViewModel** | Presentation data, filtering, formatting, button enablement, forwarding user intentions | Gameplay rules, Unity UI element references |
+| **Composer / root adapter** | Connecting a window ViewModel to its Unity presentation, navigation-specific wiring and lifecycle integration | Business rules, direct construction of domain services |
+| **View / widget** | UI references, visual binding, prefab child creation, local interaction wiring | Authoritative gameplay state and cross-system operations |
 
-## 2. The Golden Rule: State vs. Intent
+A `View` may subscribe directly to a ViewModel and manage child widgets. This is intentional, **not** a violation of rMVVM. Split View and Composer only when the split improves clarity. For rWS windows, the small `WindowComposer<TViewModel>` root remains the registration/binding entry point; it may delegate `Bind` to a View. For non-window widgets, no Composer is required.
 
-To prevent GC overhead and architectural confusion:
+## 3. R3 state and event semantics
 
-* **Use VitalRouter for discrete intents & milestones:** One-time actions only (`StartActivityCommand`, `ActivityCompletedEvent`). Never for every-frame updates.
-* **Use R3 for continuous state:** Values that change frequently (progress bars, health counters, UI refreshes). Mutate `ReactiveProperty.Value` directly; subscribers react automatically.
+### 3.1 `ReactiveProperty<T>` versus `ReadOnlyReactiveProperty<T>` versus `Observable<T>`
 
----
+- `ReactiveProperty<T>` is a mutable observable value. The owner can set `.Value`.
+- `ReadOnlyReactiveProperty<T>` exposes the latest value (`.CurrentValue`) and updates without a public value setter. It is a good **public surface for Model-owned mutable state**.
+- `Observable<T>` exposes a sequence of notifications. It does not inherently promise a current value. It suits derived streams and signals.
+- In R3 a read-only reactive property is also an observable, so presenting an existing reactive property through the narrower `Observable<T>` type does not change the behavior of that concrete source; it removes the current-value contract from its public API.
 
-## 3. The Four Pillars
-
-### 3.1 Model (Domain Layer)
-
-* **Role:** Core game state and business logic. Completely unaware of Unity and UI.
-* **Ownership:** Populated at application startup via VContainer. See [DataFlow.md: Initialization](DataFlow.md#1-initialization-the-origin-of-truth).
-* **State exposure:** Exposes read-only `R3.ReactiveProperty<T>` observables. Mutated exclusively through Commands (VitalRouter) or Domain Services.
-* **Tech:** Pure C#. Registered as Singletons in VContainer `LifetimeScope`.
-* **Example:** A domain `BuildingModel` wraps game state (health, level, resources) in `ReactiveProperty<>` fields. The model is agnostic of whether a UI exists.
-
-### 3.2 ViewModel (Presentation State)
-
-* **Role:** Bridge between Domain and View. Observes the Model and transforms raw data into UI-ready formats.
-* **UI Logic:** Owns all presentation-specific logic — formatting (120 sec → "02:00"), calculating progress (0.0–1.0), filtering lists, determining button interactability. Does **not** execute business logic.
-* **Rules:** Contains zero references to `UnityEngine.UI` or `UnityEngine.UIElements`. Easily unit-testable. Injected by VContainer as Transient (each screen/row gets its own instance).
-* **Tech:** Pure C#, `R3.ReactiveProperty<T>`, `R3.Observable<T>`.
-* **Example:** A UI screen observes the domain's `Building` model and exposes a `ReadOnlyReactiveProperty<string> HealthDisplay` that transforms raw HP into "45/100 HP" text. The ViewModel requests domain services (e.g., `BuildingService`) via constructor injection — VContainer resolves them automatically.
-
-### 3.3 Composer (Binder & Lifecycle Owner)
-
-* **Role:** C#↔Unity bridge. Receives a fully-constructed ViewModel and introduces it to the View.
-* **Ownership:** Owns the UI lifecycle. Manages `destroyCancellationToken` and disposes R3 subscriptions when the GameObject is destroyed, preventing memory leaks.
-* **Rules:** The *only* layer allowed to reference both pure C# ViewModels and Unity UI components. Does **not** instantiate Domain Services or execute logic.
-* **Tech:** `MonoBehaviour`. Typically sealed, non-generic base class `WindowComposer` + generic `WindowComposer<TViewModel>`.
-* **Example:** A Composer wires the ViewModel's `HealthDisplay` to a `TextMeshProUGUI` component and subscribes to it:
-  ```csharp
-  _viewModel.HealthDisplay.Subscribe(text => _healthText.text = text).AddTo(_disposables);
-  ```
-
-### 3.4 View (Dumb Presentation)
-
-* **Role:** Pure visual shell.
-* **Rules:** Contains absolutely zero logic. Exposes references to UI elements (`TMP_Text`, `Button`, etc.) or simple rendering methods. Driven entirely by the Composer.
-* **Tech:** `MonoBehaviour` + uGUI/UITK components.
-
----
-
-## 4. Dependency Injection (VContainer) Boundaries
-
-VContainer strictly separates how logic is *built* from how it's *bound to the screen*.
-
-### C# → C# (VContainer's job)
-
-`ViewModel` constructors declare their dependencies. VContainer inspects the constructor, resolves every dependency (other services, models, factories), and returns a fully hydrated instance:
+Illustrative pattern:
 
 ```csharp
-public class SomeViewModel
+using R3;
+
+public sealed class CounterModel : IDisposable
 {
-    public SomeViewModel(SomeService service, SomeModel model)
-    {
-        // VContainer automatically found and injected service and model
-    }
+    private readonly ReactiveProperty<int> _count = new(0);
+    public ReadOnlyReactiveProperty<int> Count => _count;
+
+    // Invoke through the owning service or an explicit permitted operation.
+    public void Increment() => _count.Value++;
+
+    public void Dispose() => _count.Dispose();
 }
 ```
 
-For runtime data + static dependencies, VContainer supports factory delegates:
+Prefer read-only exposure for shared state. This is an **API convention**, not a demand to write a wrapper and setter for every field; if a domain is small and service-owned mutation through a public `ReactiveProperty<T>` is deliberate, document the owner and avoid writes from presentation. Read-only exposure does not itself solve cross-model invariants or prevent a consumer from disposing a shared property; ownership rules still apply.
 
-```csharp
-// In GameLifetimeScope:
-builder.RegisterFactory<BuildingModel, BuildingDetailsViewModel>(
-    resolver => building => new BuildingDetailsViewModel(building, resolver.Resolve<...>())
-);
+Do **not** wrap immutable configuration fields and every computed getter in reactive properties. A computed getter can remain plain C#; expose a derived observable only when consumers need change notifications.
 
-// Later, in a caller:
-var vm = resolver.Resolve<BuildingModel, BuildingDetailsViewModel>(specificBuilding);
+### 3.2 Collections
+
+Use `ObservableList<T>` (ObservableCollections) for dynamic collections that UI observes. A typical owner/service changes the list; a ViewModel observes add/remove/reset and maintains child ViewModels or presentational entries; the View binds only affected rows.
+
+- Give domain entities stable identity, independent of list position.
+- Define behavior for `Add`, `Remove`, `Reset`, and—where used—`Move`/`Replace`; avoid rebuilding all rows for one item change.
+- Item field changes should come from item-level reactive properties or explicit replacement notifications, not implicit assumptions about collection events.
+- Whoever creates a child ViewModel disposes it on removal/reset and on parent disposal.
+- Treat publicly exposed mutable `ObservableList<T>` as an ownership boundary. Use a read-only collection projection if appropriate; otherwise enforce service-owned writes by convention.
+
+## 4. Intent and operations
+
+Both invocation styles are supported:
+
+```text
+ViewModel -> DomainService.TryPerform(...) -> Models
+ViewModel -> VitalRouter command -> handler -> DomainService -> Models
 ```
 
-### C# → Unity (Composer's job)
+Use direct calls for explicit one-to-one dependencies and operations needing immediate results, validation, or return values. Use VitalRouter for decoupled requests, cross-feature orchestration, milestones, and fan-out notifications. Do not put continuous values or per-frame state into commands. No service is obliged to expose both APIs.
 
-VContainer does not know about Prefabs or UI components. The Composer takes the DI-built ViewModel and wires it to the View manually. This keeps rMVVM framework-agnostic and doesn't force DI to make UI decisions.
+A service that coordinates several Models should validate before mutation and keep critical synchronous transitions coherent. A full transaction framework is not required. A `busy`/`processing` flag may guard reentry, but **does not automatically buffer R3 notifications**; use a final domain notification, explicit gating, or batching only where observers genuinely require an all-at-once view. Await critical asynchronous operations and surface failures; reserve `.Forget()` for intentionally detached work with appropriate exception/cancellation handling.
 
----
+## 5. Presentation patterns
 
-## 5. UI Assembly Patterns
+### 5.1 Small, passive widget
 
-### 5.1 Dumb Views
+A simple View with serialized UI references may be configured by a parent View/Composer. No extra ViewModel, interface, or Composer is necessary.
 
-For simple, repeating elements (e.g., a resource icon + count pair, a status bar).
+### 5.2 Reactive widget
 
-* **Implementation:** A simple View class exposing public fields or rendering methods. Prefix with `Dumb` to clarify its role (e.g., `DumbResourceRowView`).
-* **Usage:** The parent View directly calls the Dumb View's methods. No dedicated ViewModel.
-* **Benefit:** Zero boilerplate. No MVVM triad needed for a single label.
+A View directly binds an owned ViewModel's properties and button handlers and disposes its **own** subscriptions on unbind/destroy. It must not dispose a ViewModel owned by its parent or the caller.
 
-### 5.2 Smart Widgets (Nested MVVM)
+### 5.3 Screen/window
 
-For components with independent behavior, dynamic state, or their own logic (e.g., an activity countdown timer, a personnel row with sub-actions).
+An rWS window prefab has `WindowComposer<TViewModel>` for type resolution and lifecycle integration. The Composer may contain binding code or call `ScreenView.Bind(viewModel, token)`; the second arrangement is recommended when the View owns dynamic widget creation. Only one component should own each subscription and each ViewModel's disposal.
 
-* **Implementation:** Its own View and ViewModel.
-* **Usage:** Parent ViewModel holds an `ObservableList<ChildViewModel>`. Parent View instantiates child Prefabs and passes their ViewModels to their Composers.
-* **Benefit:** Encapsulation. Each widget is independently testable and composable.
+### 5.4 Interfaces and factories
 
-### 5.3 Universal Exchangeability (Interfaces)
+- Add an `I...ViewModel` only when there is real substitution/testing or a shared contract. Don't create one by default.
+- Use VContainer to resolve presentation dependencies; use factories for a ViewModel that requires a selected runtime entity or ID.
+- Keep manual construction of complex ViewModels in one responsible factory when repeated; don't move every trivial `new` call into a factory.
+- Avoid using a ViewModel as a general-purpose navigation service. Let a window-level Composer or a dedicated presentation navigation helper own routing when that avoids event-forwarding loops.
 
-To enable complete UI replacement without touching logic:
+## 6. Lifetime and disposal contract
 
-* Views depend on **interfaces** rather than concrete ViewModels (e.g., `IPersonnelRowViewModel` instead of `PersonnelRowViewModel`).
-* This allows swapping uGUI for UITK, or even a web UI, with zero logic changes.
+| Resource | Owner | Disposal point |
+| --- | --- | --- |
+| Game/session Model and service | The owning VContainer session scope | Session shutdown |
+| UI window root and its bindings | rWS/window Composer | Window close/destruction or explicit unbind |
+| Window-created ViewModel | Window opening owner, if its ownership is transferred explicitly | Window close, after binding subscriptions are removed |
+| Caller-supplied ViewModel | Caller, unless explicit ownership transfer is agreed | Caller-defined |
+| Child ViewModel | Parent ViewModel/factory that creates it | Row removal/reset or parent disposal |
+| View subscriptions | View or Composer that created them | Rebind/unbind/destroy |
+| Service command subscription | Subscribing service or owning scope | Service/scope disposal |
 
----
+Do not let the same ViewModel be disposed independently by both Composer and a separate service. Support repeated bind/unbind safely (including pooled objects); cancellation of an async window operation must not leave subscriptions or tasks behind. Use `CompositeDisposable`, cancellation tokens, and explicit ownership rather than assuming Unity `OnDestroy` covers every lifetime.
 
-## 6. Architecture in Practice
+## 7. Dependency injection guidelines
 
-The layering flows like this:
+- Split a large composition root into **installers/registration modules** organized by responsibility. An installer is not a VContainer scope.
+- Use real parent/child `LifetimeScope`s only for different lifetimes (for example a gameplay session and its UI scene), **not** one scope per feature.
+- A child resolves parent registrations; a parent must not depend on a child-only service. Move cross-boundary behavior to a parent-level contract or re-evaluate scope placement.
+- Prefer a VContainer entry point/explicit startup coordinator over registering services whose constructors have hidden side effects and then forcing `.Resolve()` in a build callback.
+- Prefer constructor injection for ordinary services. Window root components can be registered or injected by the UI scope; scene object placement is not a concern of the domain layer.
+- Do not register a `Lifetime.Singleton` reflexively; choose session scope, UI scope, or window ownership intentionally.
 
-1. **On Boot:** VContainer reads ScriptableObject configs and populates Domain Models. See [DataFlow.md: Initialization](DataFlow.md#1-initialization-the-origin-of-truth).
-2. **UI Request:** Navigation request arrives (user click, game event, etc.). See [ReactiveWindowSystem.md](ReactiveWindowSystem.md) for how rWS routes it.
-3. **ViewModel Construction:** rWS asks VContainer to resolve the requested `ViewModel`. VContainer inspects its constructor, resolves dependencies, returns the instance.
-4. **Binding:** rWS instantiates the Prefab and passes the ViewModel to its Composer. The Composer wires ViewModel observables to View UI elements.
-5. **Runtime:** Model mutates (Commands or Services). ViewModel observes and transforms. View subscribes and renders.
-6. **Cleanup:** When the Prefab is destroyed, the Composer disposes subscriptions via `destroyCancellationToken`.
+Further initialization rules and optional snapshot persistence are in [DataFlow.md](DataFlow.md).
 
----
+## 8. Conformance checklist
 
-## 7. Common Pitfalls
+- A service can be tested without constructing UI views or windows.
+- A ViewModel can be tested without `Button`, `TMP_Text`, or `VisualElement` objects.
+- Opening and closing the same window repeatedly does not increase live subscriptions.
+- Adding/removing a collection item updates only the appropriate widgets, and removed child ViewModels are disposed.
+- A cancelled operation does not leave its owner in an impossible state.
+- An rWS window uses a Composer as the root adapter; simple nested widgets need no extra Composer.
+- The reusable module does not reference consuming-game assemblies or content definitions.
 
-* **Putting UI logic in the Model:** Models should know nothing of UI formats, button states, or lists. All of that belongs in the ViewModel.
-* **Injecting Views into ViewModels:** If a ViewModel needs a reference to UI components, move that wiring to the Composer instead. ViewModels should be testable without Unity.
-* **Missing disposal in Composers:** Every R3 subscription must be added to the Composer's `CompositeDisposable` and disposed in `OnDestroy`. Memory leaks otherwise.
-* **Using Commands for continuous state:** Commands are discrete, one-time events. For values that change every frame, use R3 `ReactiveProperty` instead.
+## 9. Related documents
 
----
-
-## 8. See Also
-
-* [DataFlow.md](DataFlow.md) — How data is initialized and persisted.
-* [ReactiveWindowSystem.md](ReactiveWindowSystem.md) — How UI windows are routed and stacked.
+- [DataFlow.md](DataFlow.md) — initialization, ownership, VContainer scopes and optional persistence.
+- [ReactiveWindowSystem.md](ReactiveWindowSystem.md) — reusable window routing and modal lifecycle.
