@@ -46,6 +46,7 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
 
     // Strict teardown flag
     private bool _isQuitting;
+    private bool _isTornDown;
 
     private void Awake()
     {
@@ -55,6 +56,7 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
     private void OnDestroy()
     {
         Application.quitting -= OnApplicationQuitting;
+        _isTornDown = true;
         _stackChanged.Dispose();
     }
 
@@ -150,7 +152,7 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
 
     internal async UniTask ExecuteShowAsync(WindowConfig config, object viewModel, string containerIdOverride, StackMode? modeOverride, CancellationToken cancellationToken)
     {
-        if (_isQuitting) return;
+        if (_isQuitting || _isTornDown) return;
 
         var targetContainer = string.IsNullOrEmpty(containerIdOverride) ? config.DefaultContainerId : containerIdOverride;
         var stackMode = modeOverride ?? config.DefaultStackMode;
@@ -194,7 +196,7 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
             Debug.LogWarning($"[WindowService] No ViewModel provided or mapped for '{config.name}'. Binding skipped.");
         }
 
-        _stackChanged.OnNext(new WindowStackChange(targetContainer, composer, list.Count, WindowStackChangeKind.Added));
+        if (!_isTornDown) _stackChanged.OnNext(new WindowStackChange(targetContainer, composer, list.Count, WindowStackChangeKind.Added));
 
         await composer.ShowAsync();
 
@@ -203,7 +205,7 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
             cancellationToken.Register(() =>
             {
                 // The architectural fix: bypass during teardown
-                if (_isQuitting) return; 
+                if (_isQuitting || _isTornDown) return;
 
                 if (viewModel != null)
                 {
@@ -219,7 +221,7 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
 
     public async UniTask HideAsync<TViewModel>(TViewModel viewModel, CancellationToken cancellationToken = default) where TViewModel : class
     {
-        if (_isQuitting) return;
+        if (_isQuitting || _isTornDown) return;
 
         foreach (var kvp in _activeWindows)
         {
@@ -227,13 +229,15 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
             for (int i = list.Count - 1; i >= 0; i--)
             {
                 var window = list[i];
-                
+
                 if (window.HasViewModel(viewModel))
                 {
                     await window.HideAsync();
                     if (window != null && window.gameObject != null) Destroy(window.gameObject);
                     list.RemoveAt(i);
-                    _stackChanged.OnNext(new WindowStackChange(kvp.Key, window, list.Count, WindowStackChangeKind.Removed));
+                    // The service (and its _stackChanged Subject) may have been torn down while
+                    // the awaits above were suspended (e.g. scene unload destroying this component).
+                    if (!_isTornDown) _stackChanged.OnNext(new WindowStackChange(kvp.Key, window, list.Count, WindowStackChangeKind.Removed));
                     return;
                 }
             }
@@ -242,7 +246,7 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
 
     public async UniTask HideAsync(string containerId, CancellationToken cancellationToken = default)
     {
-        if (_isQuitting) return;
+        if (_isQuitting || _isTornDown) return;
 
         if (_activeWindows.TryGetValue(containerId, out var list) && list.Count > 0)
         {
@@ -251,7 +255,7 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
 
             await topWindow.HideAsync();
             if (topWindow != null && topWindow.gameObject != null) Destroy(topWindow.gameObject);
-            _stackChanged.OnNext(new WindowStackChange(containerId, topWindow, list.Count, WindowStackChangeKind.Removed));
+            if (!_isTornDown) _stackChanged.OnNext(new WindowStackChange(containerId, topWindow, list.Count, WindowStackChangeKind.Removed));
         }
     }
 
