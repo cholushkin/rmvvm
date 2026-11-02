@@ -14,4 +14,4 @@ MonoBehaviour:
   m_EditorClassIdentifier: RMVVM::WindowConfig
   DefaultContainerId: SystemMessages
   DefaultStackMode: 1
-  Prefab: {fileID: 3338513665433511246, guid: 01be5cba06a438c46a0ab55f9fd10089, type: 3}
+  Prefab: {fileID: 2406751911232181443, guid: 864577181c6c223449298151b3fa2b48, type: 3}
