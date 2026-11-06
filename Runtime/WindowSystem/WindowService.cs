@@ -34,6 +34,7 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
     [Header("Startup Configuration")]
     [Tooltip("Windows to automatically open when the game boots.")]
     [SerializeField] private List<StartupWindowMapping> _startupWindows = new();
+    [SerializeField] private bool _killObjectsUnderRootOnAwake;
 
     [Header("Containers")]
     [SerializeField] private List<ContainerMapping> _containerMappings = new();
