@@ -34,6 +34,7 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
     [Header("Startup Configuration")]
     [Tooltip("Windows to automatically open when the game boots.")]
     [SerializeField] private List<StartupWindowMapping> _startupWindows = new();
+    [Tooltip("On Awake, warn about and destroy any enabled object found directly under a container root (leftover test/debug objects a developer forgot to remove before committing the scene).")]
     [SerializeField] private bool _killObjectsUnderRootOnAwake;
 
     [Header("Containers")]
@@ -52,6 +53,31 @@ public sealed class WindowService : MonoBehaviour, IWindowService, IAsyncStartab
     private void Awake()
     {
         Application.quitting += OnApplicationQuitting;
+
+        if (_killObjectsUnderRootOnAwake) KillStrayObjectsUnderRoots();
+    }
+
+    /// Developer-hygiene safety net: warns about and destroys any enabled object found directly
+    /// under a container root. Uses _containerMappings (not _containers) because this runs before
+    /// Construct/DI populates the latter. Only direct children are checked, since windows themselves
+    /// are only ever added as direct children of a root (see ExecuteShowAsync) — anything deeper is
+    /// inside a window's own prefab hierarchy, not a stray root-level leftover.
+    private void KillStrayObjectsUnderRoots()
+    {
+        foreach (var mapping in _containerMappings)
+        {
+            if (mapping.Root == null) continue;
+
+            for (int i = mapping.Root.childCount - 1; i >= 0; i--)
+            {
+                var child = mapping.Root.GetChild(i).gameObject;
+                if (!child.activeSelf) continue;
+
+                Debug.LogWarning($"[WindowService] Found enabled object '{child.name}' left under " +
+                    $"container '{mapping.ContainerId}' root. Destroying it.", child);
+                Destroy(child);
+            }
+        }
     }
 
     private void OnDestroy()

@@ -24,6 +24,7 @@
 - Reject duplicate/blank container IDs; fail visibly for unknown IDs and missing roots.
 - Validate references from `WindowConfig` and back-routing priorities in the editor or on startup.
 - Avoid assuming hardcoded IDs such as `"ModalOverlay"`, `"MainScreen"`, or `"Background"`. These may be examples of host configuration, not library requirements.
+- Optional developer-hygiene check: `_killObjectsUnderRootOnAwake` (Inspector flag, off by default). When enabled, `WindowService.Awake` warns about and destroys any enabled object found directly under a container root — a leftover test/debug object a developer forgot to remove before committing the scene. Only direct children of each root are checked; windows are always added as direct children, so anything deeper is inside a window's own prefab hierarchy, not a stray.
 
 ### 2.2 WindowConfig
 
